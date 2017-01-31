@@ -34,7 +34,7 @@ import java.util.Vector;
 /** A classifier specialized to label images using TensorFlow. */
 public class TensorFlowImageClassifier implements Classifier {
 
-  private static final String TAG = "TensorFlowImageClassifier";
+  private static final String TAG = "TFImageClassifier";
 
   // Only return this many results with at least this confidence.
   private static final int MAX_RESULTS = 3;
@@ -49,10 +49,10 @@ public class TensorFlowImageClassifier implements Classifier {
 
   // Pre-allocated buffers.
   private Vector<String> labels = new Vector<String>();
-  private int[] intValues;
   private float[] floatValues;
   private float[] outputs;
   private String[] outputNames;
+  private int[] intValues;
 
   private TensorFlowInferenceInterface inferenceInterface;
 
@@ -103,9 +103,9 @@ public class TensorFlowImageClassifier implements Classifier {
 
     // Pre-allocate buffers.
     outputNames = new String[] {outputName};
-    intValues = new int[inputSize * inputSize];
     floatValues = new float[inputSize * inputSize * 3];
     outputs = new float[numClasses];
+    intValues = new int[inputSize * inputSize];
 
     inferenceInterface = new TensorFlowInferenceInterface();
 
@@ -116,11 +116,11 @@ public class TensorFlowImageClassifier implements Classifier {
   public List<Recognition> recognizeImage(final Bitmap bitmap) {
     // Log this method so that it can be analyzed with systrace.
     Trace.beginSection("recognizeImage");
+    bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
 
     Trace.beginSection("preprocessBitmap");
     // Preprocess the image data from 0-255 int to normalized float based
     // on the provided parameters.
-    bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
     for (int i = 0; i < intValues.length; ++i) {
       final int val = intValues[i];
       floatValues[i * 3 + 0] = (((val >> 16) & 0xFF) - imageMean) / imageStd;

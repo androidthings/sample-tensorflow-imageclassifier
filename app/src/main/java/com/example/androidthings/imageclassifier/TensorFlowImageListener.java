@@ -20,7 +20,6 @@ import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Matrix;
 import android.media.Image;
 import android.media.ImageReader;
@@ -35,7 +34,6 @@ import com.example.androidthings.imageclassifier.env.ImageUtils;
 import junit.framework.Assert;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Calendar;
 import java.util.List;
 import java.util.TimeZone;
@@ -65,7 +63,7 @@ public class TensorFlowImageListener implements OnImageAvailableListener {
     private static final String LABEL_FILE =
             "file:///android_asset/imagenet_comp_graph_label_strings.txt";
 
-    private Integer sensorOrientation = 0;
+    private int sensorOrientation = 0;
 
     private final TensorFlowImageClassifier tensorflow = new TensorFlowImageClassifier();
 
@@ -78,13 +76,18 @@ public class TensorFlowImageListener implements OnImageAvailableListener {
 
     private RecognitionScoreView scoreView;
 
+    private int previewWidth;
+    private int previewHeight;
+
+    private byte[][] cachedYuvBytes = new byte[3][];
+    private int[] rgbBytes = null;
+
     public void initialize(
             final AssetManager assetManager,
             final RecognitionScoreView scoreView,
             final Activity activity,
             final Handler handler,
             final Integer sensorOrientation) {
-        Assert.assertNotNull(sensorOrientation);
         try {
             tensorflow.initializeTensorFlow(
                     assetManager, MODEL_FILE, LABEL_FILE, NUM_CLASSES, INPUT_SIZE, IMAGE_MEAN, IMAGE_STD,
@@ -95,32 +98,7 @@ public class TensorFlowImageListener implements OnImageAvailableListener {
         this.scoreView = scoreView;
         this.activity = activity;
         this.handler = handler;
-        this.sensorOrientation = sensorOrientation;
-    }
-
-    private void drawResizedBitmap(final Bitmap src, final Bitmap dst) {
-        Assert.assertEquals(dst.getWidth(), dst.getHeight());
-        final float minDim = Math.min(src.getWidth(), src.getHeight());
-
-        final Matrix matrix = new Matrix();
-
-        // We only want the center square out of the original rectangle.
-        final float translateX = -Math.max(0, (src.getWidth() - minDim) / 2);
-        final float translateY = -Math.max(0, (src.getHeight() - minDim) / 2);
-        matrix.preTranslate(translateX, translateY);
-
-        final float scaleFactor = dst.getHeight() / minDim;
-        matrix.postScale(scaleFactor, scaleFactor);
-
-        // Rotate around the center if necessary.
-        if (sensorOrientation != 0) {
-            matrix.postTranslate(-dst.getWidth() / 2.0f, -dst.getHeight() / 2.0f);
-            matrix.postRotate(sensorOrientation);
-            matrix.postTranslate(dst.getWidth() / 2.0f, dst.getHeight() / 2.0f);
-        }
-
-        final Canvas canvas = new Canvas(dst);
-        canvas.drawBitmap(src, matrix, null);
+        this.sensorOrientation = sensorOrientation == null ? 0 : sensorOrientation;
     }
 
     @Override
@@ -129,7 +107,6 @@ public class TensorFlowImageListener implements OnImageAvailableListener {
         Image image = null;
         try {
             image = reader.acquireLatestImage();
-
             if (image == null) {
                 return;
             }
@@ -139,16 +116,23 @@ public class TensorFlowImageListener implements OnImageAvailableListener {
                 image.close();
                 return;
             }
+
             computing = true;
 
             Trace.beginSection("imageAvailable");
 
-            rgbFrameBitmap = image2Bitmap(image);
+            // Initialize the storage bitmaps once when the resolution is known.
+            if (previewWidth != image.getWidth() || previewHeight != image.getHeight()) {
+                previewWidth = image.getWidth();
+                previewHeight = image.getHeight();
 
+                rgbBytes = new int[previewWidth * previewHeight];
+                rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
+                croppedBitmap = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Config.ARGB_8888);
+            }
+
+            ImageUtils.convertImageToBitmap(image, previewWidth, previewHeight, rgbBytes, cachedYuvBytes);
             updateImageView(rgbFrameBitmap, activity);
-
-            croppedBitmap = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Config.ARGB_8888);
-
             image.close();
         } catch (final Exception e) {
             if (image != null) {
@@ -160,7 +144,8 @@ public class TensorFlowImageListener implements OnImageAvailableListener {
         }
 
         if (croppedBitmap != null && rgbFrameBitmap != null) {
-            drawResizedBitmap(rgbFrameBitmap, croppedBitmap);
+            rgbFrameBitmap.setPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight);
+            ImageUtils.cropAndRescaleBitmap(rgbFrameBitmap, croppedBitmap, sensorOrientation);
         }
 
         // For examining the actual TF input.
@@ -176,15 +161,18 @@ public class TensorFlowImageListener implements OnImageAvailableListener {
                 new Runnable() {
                     @Override
                     public void run() {
-                        final List<Classifier.Recognition> results =
-                                tensorflow.recognizeImage(croppedBitmap);
-
-                        Log.v(TAG, results.size() + " results");
+                        final List<Classifier.Recognition> results;
+                        try {
+                            results =
+                                    tensorflow.recognizeImage(croppedBitmap);
+                            Log.v(TAG, results.size() + " results");
+                        } finally {
+                            computing = false;
+                        }
                         for (final Classifier.Recognition result : results) {
                             Log.v(TAG, "Result: " + result.getTitle());
                         }
                         scoreView.setResults(results);
-                        computing = false;
                     }
                 });
 
@@ -192,70 +180,6 @@ public class TensorFlowImageListener implements OnImageAvailableListener {
     }
 
 
-    private Bitmap image2Bitmap(Image image) {
-        Image.Plane yPlane = image.getPlanes()[0];
-        Image.Plane uPlane = image.getPlanes()[1];
-        Image.Plane vPlane = image.getPlanes()[2];
-        final Bitmap img = Bitmap.createBitmap(image.getWidth(), image.getHeight(),
-                Bitmap.Config.RGB_565);
-        ByteBuffer yBuff = yPlane.getBuffer();
-        ByteBuffer cbBuff = uPlane.getBuffer();
-        ByteBuffer crBuff = vPlane.getBuffer();
-
-        for (int y = 0; y < image.getHeight(); ++y) {
-            for (int x = 0; x < image.getWidth(); ++x) {
-                int pixelsIn = x + y * yPlane.getRowStride();
-                int yVal = yBuff.get(pixelsIn);
-                int cPixelsIn = x / 2 * uPlane.getPixelStride() + y / 2 * uPlane.getRowStride();
-                int cbVal = cbBuff.get(cPixelsIn);
-                int crVal = crBuff.get(cPixelsIn);
-                // Java doesn't do unsigned, so we have to decode what Java
-                // thinks is two's complement back to unsigned.
-                if (yVal < 0) {
-                    yVal += 128;
-                    yVal += 128;
-                }
-                if (cbVal < 0) {
-                    cbVal += 128;
-                    cbVal += 128;
-                }
-                if (crVal < 0) {
-                    crVal += 128;
-                    crVal += 128;
-                }
-
-                // Values used for YUV --> RGB conversion.
-                crVal -= 128;
-                cbVal -= 128;
-                double yF = 1.164 * (yVal - 16);
-
-                int r = (int) (yF + 1.596 * (crVal));
-                int g = (int) (yF - 0.391 * (cbVal) - 0.813 * (crVal));
-                int b = (int) (yF + 2.018 * (cbVal));
-                // Clamp RGB to [0,255]
-                if (r < 0) {
-                    r = 0;
-                } else if (r > 255) {
-                    r = 255;
-                }
-                if (g < 0) {
-                    g = 0;
-                } else if (g > 255) {
-                    g = 255;
-                }
-                if (b < 0) {
-                    b = 0;
-                } else if (b > 255) {
-                    b = 255;
-                }
-
-                img.setPixel(x, y, Color.rgb(r, g, b));
-
-            }
-        }
-
-        return img;
-    }
 
     private static void updateImageView(final Bitmap bmp, final Activity activity) {
         if (activity != null) {

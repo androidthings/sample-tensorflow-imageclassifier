@@ -263,9 +263,7 @@ public class CameraConnectionFragment extends Fragment {
 
             // Finally, we start displaying the camera preview.
             previewRequest = previewRequestBuilder.build();
-            captureSession.setRepeatingRequest(
-                    previewRequest, captureCallback, backgroundHandler);
-            captureSession.capture(previewRequest, captureCallback, null);
+            captureSession.setRepeatingRequest(previewRequest, captureCallback, backgroundHandler);
         } catch (final CameraAccessException e) {
             Log.e(TAG, "Exception!");
         }
