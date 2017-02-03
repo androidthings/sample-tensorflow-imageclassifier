@@ -6,7 +6,7 @@ apply plugin: 'de.undercouch.download'
 
 android {
     compileSdkVersion 24
-    buildToolsVersion "24.0.1"
+    buildToolsVersion "24.0.3"
 
     lintOptions {
         abortOnError false
@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = 'com.example.androidthings.imageclassifier'
-        minSdkVersion 21
+        minSdkVersion 24
         targetSdkVersion 24
     }
     buildTypes {
@@ -58,4 +58,7 @@ repositories {
 dependencies {
     compile("com.android.support:support-v4:23.0.+")
     compile(name: 'Tensorflow-Android-Inference-debug', ext: 'aar')
+
+    provided 'com.google.android.things:androidthings:0.1-devpreview'
+    compile 'com.google.android.things.contrib:driver-button:0.2'
 }

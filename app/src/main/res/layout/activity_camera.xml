@@ -13,10 +13,44 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000"
-    tools:context="com.example.androidthings.imageclassifier.CameraActivity" />
+    tools:context="com.example.androidthings.imageclassifier.ImageClassifierActivity">
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="640dip"
+        android:layout_height="480dip"
+        android:layout_alignParentTop="true"
+        android:layout_marginBottom="0dp"/>
+
+    <LinearLayout
+        android:id="@+id/results"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/results"
+        android:background="@color/control_background"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/result1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            tools:text="dog: 0.343535" />
+
+        <TextView
+            android:id="@+id/result2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            tools:text="chair: 0.23423423" />
+
+        <TextView
+            android:id="@+id/result3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+</RelativeLayout>

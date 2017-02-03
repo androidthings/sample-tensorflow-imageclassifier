@@ -85,10 +85,7 @@ public class ImageUtils {
     }
 
 
-    public static void convertImageToBitmap(Image image, int width, int height, int[] output,
-                                            byte[][] cachedYuvBytes) {
-
-
+    public static int[] convertImageToBitmap(Image image, int[] output, byte[][] cachedYuvBytes) {
         if (cachedYuvBytes == null || cachedYuvBytes.length != 3) {
             cachedYuvBytes = new byte[3][];
         }
@@ -100,9 +97,8 @@ public class ImageUtils {
         final int uvPixelStride = planes[1].getPixelStride();
 
         convertYUV420ToARGB8888(cachedYuvBytes[0], cachedYuvBytes[1], cachedYuvBytes[2],
-                width, height, yRowStride, uvRowStride, uvPixelStride, output);
-
-
+                image.getWidth(), image.getHeight(), yRowStride, uvRowStride, uvPixelStride, output);
+        return output;
     }
 
     private static void convertYUV420ToARGB8888(byte[] yData, byte[] uData, byte[] vData, int width, int height,
