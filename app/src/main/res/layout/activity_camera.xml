@@ -40,17 +40,22 @@
             android:id="@+id/result1"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:textColor="@android:color/black"
+            android:text="@string/help_message"
             tools:text="dog: 0.343535" />
 
         <TextView
             android:id="@+id/result2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:textColor="@android:color/black"
             tools:text="chair: 0.23423423" />
 
         <TextView
             android:id="@+id/result3"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:textColor="@android:color/black"
+            tools:text="cat: 0.21423423" />
     </LinearLayout>
 </RelativeLayout>

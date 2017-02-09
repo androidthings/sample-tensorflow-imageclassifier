@@ -56,8 +56,7 @@ repositories {
 }
 
 dependencies {
-    compile("com.android.support:support-v4:23.0.+")
-    compile(name: 'Tensorflow-Android-Inference-debug', ext: 'aar')
+    compile(name: 'Tensorflow-Android-Inference-alpha-debug', ext: 'aar')
 
     provided 'com.google.android.things:androidthings:0.1-devpreview'
     compile 'com.google.android.things.contrib:driver-button:0.2'
