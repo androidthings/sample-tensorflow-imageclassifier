@@ -15,6 +15,9 @@
  */
 package com.example.androidthings.imageclassifier;
 
+import static android.Manifest.permission.CAMERA;
+import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
+
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -46,9 +49,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static android.Manifest.permission.CAMERA;
-import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
-
 public class ImageClassifierActivity extends Activity implements ImageReader.OnImageAvailableListener {
     private static final String TAG = "ImageClassifierActivity";
     private static final int PERMISSIONS_REQUEST = 1;
@@ -58,6 +58,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
 
     private ImagePreprocessor mImagePreprocessor;
     private TextToSpeech mTtsEngine;
+    private TtsSpeaker mTtsSpeaker;
     private CameraHandler mCameraHandler;
     private TensorFlowImageClassifier mTensorFlowClassifier;
 
@@ -116,6 +117,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
             mImagePreprocessor = new ImagePreprocessor(CameraHandler.IMAGE_WIDTH,
                     CameraHandler.IMAGE_HEIGHT, TensorFlowImageClassifier.INPUT_SIZE);
 
+            mTtsSpeaker = new TtsSpeaker();
             mTtsEngine = new TextToSpeech(ImageClassifierActivity.this,
                     new TextToSpeech.OnInitListener() {
                         @Override
@@ -123,6 +125,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
                             if (status == TextToSpeech.SUCCESS) {
                                 mTtsEngine.setLanguage(Locale.US);
                                 mTtsEngine.setOnUtteranceProgressListener(utteranceListener);
+                                mTtsSpeaker.speakReady(mTtsEngine);
                             } else {
                                 mTtsEngine = null;
                             }
@@ -136,6 +139,16 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
             mTensorFlowClassifier = new TensorFlowImageClassifier(ImageClassifierActivity.this);
 
             setReady(true);
+        }
+    };
+
+    private Runnable mBackgroundClickHandler = new Runnable() {
+        @Override
+        public void run() {
+            if (mTtsEngine != null) {
+                mTtsSpeaker.speakShutterSound(mTtsEngine);
+            }
+            mCameraHandler.takePicture();
         }
     };
 
@@ -162,7 +175,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         if (keyCode == KeyEvent.KEYCODE_ENTER) {
             if (mReady.get()) {
                 setReady(false);
-                mCameraHandler.takePicture();
+                mBackgroundHandler.post(mBackgroundClickHandler);
                 return true;
             }
         }
@@ -198,27 +211,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
 
         if (mTtsEngine != null) {
             // speak out loud the result of the image recognition
-            if (Math.random() < 0.3) {
-                mTtsEngine.setPitch(0.2f);
-                mTtsEngine.speak("I see dead people...", TextToSpeech.QUEUE_ADD, null, "ID");
-                mTtsEngine.setPitch(1);
-                mTtsEngine.speak("just kidding...", TextToSpeech.QUEUE_ADD, null, "ID");
-            } else {
-                mTtsEngine.setPitch(1f);
-                mTtsEngine.setVoice(mTtsEngine.getDefaultVoice());
-            }
-            String message;
-            if (results.isEmpty()) {
-                message = "I don't understand what I see. Am I using drugs?";
-            } else if (results.size() == 1 || results.get(0).getConfidence() > 0.4f) {
-                message = String.format(Locale.getDefault(), "I see a %s",
-                        results.get(0).getTitle());
-            } else {
-                message = String.format(Locale.getDefault(),
-                        "This is a %s or maybe a %s",
-                        results.get(0).getTitle(), results.get(1).getTitle());
-            }
-            mTtsEngine.speak(message, TextToSpeech.QUEUE_ADD, null, "ID");
+            mTtsSpeaker.speakResults(mTtsEngine, results);
         } else {
             // if theres no TTS, we don't need to wait until the utterance is spoken, so we set
             // to ready right away.
@@ -228,7 +221,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                for (int i=0; i<mResultViews.length; i++) {
+                for (int i = 0; i < mResultViews.length; i++) {
                     if (results.size() > i) {
                         Classifier.Recognition r = results.get(i);
                         mResultViews[i].setText(r.toString());
@@ -268,12 +261,21 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mTtsEngine != null) {
+            mTtsEngine.stop();
+            mTtsEngine.shutdown();
+        }
+    }
+
     // Permission-related methods. This is not needed for Android Things, where permissions are
-    // automatically granted. However, it is kept here in case the developer
-    // needs to test on a regular Android device
+    // automatically granted. However, it is kept here in case the developer needs to test on a
+    // regular Android device.
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[],
-                                           @NonNull int[] grantResults) {
+            @NonNull int[] grantResults) {
         switch (requestCode) {
             case PERMISSIONS_REQUEST: {
                 if (grantResults.length > 0
@@ -288,20 +290,19 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     }
 
     private boolean hasPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return checkSelfPermission(CAMERA) == PackageManager.PERMISSION_GRANTED &&
-                    checkSelfPermission(WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-        } else {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return true;
         }
+        return checkSelfPermission(CAMERA) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void requestPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (shouldShowRequestPermissionRationale(CAMERA) ||
                     shouldShowRequestPermissionRationale(WRITE_EXTERNAL_STORAGE)) {
-                Toast.makeText(ImageClassifierActivity.this,"Camera AND storage permission are " +
-                        "required for this demo", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Camera AND storage permission are required for this demo",
+                        Toast.LENGTH_LONG).show();
             }
             requestPermissions(new String[]{CAMERA, WRITE_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST);
         }
