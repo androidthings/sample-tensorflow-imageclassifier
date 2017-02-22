@@ -22,7 +22,11 @@ import com.example.androidthings.imageclassifier.classifier.Classifier.Recogniti
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.NavigableMap;
 import java.util.Random;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
 public class TtsSpeaker {
 
@@ -44,41 +48,92 @@ public class TtsSpeaker {
         JOKES.add(new ISeeDeadPeopleUtterance());
     }
 
+    /**
+     * Don't play the same joke within this span of time
+     */
+    private static final long JOKE_COOLDOWN_MILLIS = TimeUnit.MINUTES.toMillis(2);
+
+    /**
+     * For multiple results, speak only the first if it has at least this much confidence
+     */
+    private static final float SINGLE_ANSWER_CONFIDENCE_THRESHOLD = 0.4f;
+
+    /**
+     * Stores joke utterances keyed by time last spoken.
+     */
+    private NavigableMap<Long, Utterance> mJokes;
+
+    public TtsSpeaker() {
+        mJokes = new TreeMap<>();
+        long key = 0L;
+        for (Utterance joke : JOKES) {
+            // can't insert them with same key
+            mJokes.put(key++, joke);
+        }
+    }
+
     public void speakReady(TextToSpeech tts) {
         tts.speak("I'm ready!", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
     }
 
     public void speakShutterSound(TextToSpeech tts) {
-        randomElement(SHUTTER_SOUNDS).speak(tts);
+        getRandomElement(SHUTTER_SOUNDS).speak(tts);
     }
 
     public void speakResults(TextToSpeech tts, List<Recognition> results) {
-        boolean humorBefore = speakerHasSenseOfHumor();
-        if (humorBefore) {
-            randomElement(JOKES).speak(tts);
-        }
-
         if (results.isEmpty()) {
             tts.speak("I don't understand what I see.", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
-            if (!humorBefore && speakerHasSenseOfHumor()) {
+            if (hasSenseOfHumor()) {
                 tts.speak("Please don't unplug me, I'll do better next time.",
                         TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
             }
-        } else if (results.size() == 1 || results.get(0).getConfidence() > 0.4f) {
-            tts.speak(String.format(Locale.getDefault(), "I see a %s", results.get(0).getTitle()),
-                    TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
         } else {
-            tts.speak(String.format(Locale.getDefault(), "This is a %s, or maybe a %s",
-                    results.get(0).getTitle(), results.get(1).getTitle()),
-                    TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+            if (hasSenseOfHumor()) {
+                playJoke(tts);
+            }
+            if (results.size() == 1
+                    || results.get(0).getConfidence() > SINGLE_ANSWER_CONFIDENCE_THRESHOLD) {
+                tts.speak(String.format(Locale.getDefault(),
+                        "I see a %s", results.get(0).getTitle()),
+                        TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+            } else {
+                tts.speak(String.format(Locale.getDefault(), "This is a %s, or maybe a %s",
+                        results.get(0).getTitle(), results.get(1).getTitle()),
+                        TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+            }
         }
+
     }
 
-    private static <T> T randomElement(List<T> list) {
+    private boolean playJoke(TextToSpeech tts) {
+        long now = System.currentTimeMillis();
+        // choose a random joke whose last occurrence was far enough in the past
+        SortedMap<Long, Utterance> availableJokes = mJokes.headMap(now - JOKE_COOLDOWN_MILLIS);
+        Utterance joke = null;
+        if (!availableJokes.isEmpty()) {
+            int r = RANDOM.nextInt(availableJokes.size());
+            int i = 0;
+            for (Long key : availableJokes.keySet()) {
+                if (i++ == r) {
+                    joke = availableJokes.remove(key); // also removes from mJokes
+                    break;
+                }
+            }
+        }
+        if (joke != null) {
+            joke.speak(tts);
+            // add it back with the current time
+            mJokes.put(now, joke);
+            return true;
+        }
+        return false;
+    }
+
+    private static <T> T getRandomElement(List<T> list) {
         return list.get(RANDOM.nextInt(list.size()));
     }
 
-    private static boolean speakerHasSenseOfHumor() {
+    private static boolean hasSenseOfHumor() {
         return RANDOM.nextFloat() < HUMOR_THRESHOLD;
     }
 
