@@ -100,11 +100,13 @@ public class CameraHandler {
         @Override
         public void onDisconnected(@NonNull CameraDevice cameraDevice) {
             Log.d(TAG, "Camera disconnected, closing.");
+            closeCaptureSession();
             cameraDevice.close();
         }
         @Override
         public void onError(@NonNull CameraDevice cameraDevice, int i) {
             Log.d(TAG, "Camera device error, closing.");
+            closeCaptureSession();
             cameraDevice.close();
         }
         @Override
@@ -187,14 +189,28 @@ public class CameraHandler {
                     Log.d(TAG, "CaptureSession closed");
                 }
             };
+
+    private void closeCaptureSession() {
+        if (mCaptureSession != null) {
+            try {
+                mCaptureSession.close();
+            } catch (Exception ex) {
+                Log.e(TAG, "Could not close capture session", ex);
+            }
+            mCaptureSession = null;
+        }
+    }
+
     /**
      * Close the camera resources
      */
     public void shutDown() {
+        closeCaptureSession();
         if (mCameraDevice != null) {
             mCameraDevice.close();
         }
     }
+
     /**
      * Helpful debugging method:  Dump all supported camera formats to log.  You don't need to run
      * this for normal operation, but it's very helpful when porting this code to different

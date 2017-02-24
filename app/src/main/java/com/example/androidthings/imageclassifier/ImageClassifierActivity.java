@@ -15,9 +15,6 @@
  */
 package com.example.androidthings.imageclassifier;
 
-import static android.Manifest.permission.CAMERA;
-import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
-
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -48,6 +45,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static android.Manifest.permission.CAMERA;
+import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
 
 public class ImageClassifierActivity extends Activity implements ImageReader.OnImageAvailableListener {
     private static final String TAG = "ImageClassifierActivity";
@@ -94,21 +94,43 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     }
 
     private void init() {
-        try {
-            mButtonDriver = new ButtonInputDriver(BUTTON_PIN, Button.LogicState.PRESSED_WHEN_LOW,
-                    KeyEvent.KEYCODE_ENTER);
-            mButtonDriver.register();
-            PeripheralManagerService service = new PeripheralManagerService();
-            mReadyLED = service.openGpio(LED_PIN);
-            mReadyLED.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
-        } catch (IOException e) {
-            Log.w(TAG, "Could not open GPIO", e);
-        }
+        initPIO();
 
         mBackgroundThread = new HandlerThread("BackgroundThread");
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
         mBackgroundHandler.post(mInitializeOnBackground);
+    }
+
+    private void initPIO() {
+        PeripheralManagerService service = new PeripheralManagerService();
+        List<String> gpioList = service.getGpioList();
+        if (gpioList.contains(BUTTON_PIN)) {
+            try {
+                mButtonDriver = new ButtonInputDriver(BUTTON_PIN, Button.LogicState.PRESSED_WHEN_LOW,
+                        KeyEvent.KEYCODE_ENTER);
+                mButtonDriver.register();
+            } catch (IOException e) {
+                mButtonDriver = null;
+                Log.w(TAG, "Could not open GPIO", e);
+            }
+        }
+        if (mButtonDriver == null) {
+            Log.w(TAG, "Cannot find pin " + BUTTON_PIN + ". Ignoring push button on PIO. " +
+                    "Use a keyboard instead");
+        }
+        if (gpioList.contains(LED_PIN)) {
+            try {
+                mReadyLED = service.openGpio(LED_PIN);
+                mReadyLED.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            } catch (IOException e) {
+                mReadyLED = null;
+                Log.w(TAG, "Could not open GPIO", e);
+            }
+        }
+        if (mReadyLED == null) {
+            Log.w(TAG, "Cannot find pin " + LED_PIN + ". Ignoring ready indicator LED.");
+        }
     }
 
     private Runnable mInitializeOnBackground = new Runnable() {
@@ -127,6 +149,8 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
                                 mTtsEngine.setOnUtteranceProgressListener(utteranceListener);
                                 mTtsSpeaker.speakReady(mTtsEngine);
                             } else {
+                                Log.w(TAG, "Could not open TTS Engine (onInit status=" + status
+                                        + "). Ignoring text to speech");
                                 mTtsEngine = null;
                             }
                         }
@@ -171,13 +195,15 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        Log.d(TAG, "Received key down: " + keyCode);
-        if (keyCode == KeyEvent.KEYCODE_ENTER) {
+        Log.d(TAG, "Received key down: " + keyCode + ". Ready = " + mReady.get());
+        if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
             if (mReady.get()) {
                 setReady(false);
                 mBackgroundHandler.post(mBackgroundClickHandler);
-                return true;
+            } else {
+                Log.i(TAG, "Sorry, processing hasn't finished. Try again in a few seconds");
             }
+            return true;
         }
         return super.onKeyDown(keyCode, event);
     }
@@ -209,6 +235,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
 
         final List<Classifier.Recognition> results = mTensorFlowClassifier.recognizeImage(bitmap);
 
+        Log.d(TAG, "Got the following results from Tensorflow: " + results);
         if (mTtsEngine != null) {
             // speak out loud the result of the image recognition
             mTtsSpeaker.speakResults(mTtsEngine, results);
@@ -234,8 +261,8 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
+    protected void onDestroy() {
+        super.onDestroy();
         try {
             if (mBackgroundThread != null) mBackgroundThread.quit();
         } catch (Throwable t) {
@@ -259,11 +286,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         } catch (Throwable t) {
             // close quietly
         }
-    }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
         if (mTtsEngine != null) {
             mTtsEngine.stop();
             mTtsEngine.shutdown();
