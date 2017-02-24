@@ -63,6 +63,12 @@ public class TtsSpeaker {
      */
     private NavigableMap<Long, Utterance> mJokes;
 
+    /**
+     * Controls where to use jokes or not. If true, jokes will be applied randomly. If false, no
+     * joke will ever be played. Use {@link #setHasSenseOfHumor(boolean)} to change the mood.
+     */
+    private boolean mHasSenseOfHumor = true;
+
     public TtsSpeaker() {
         mJokes = new TreeMap<>();
         long key = 0L;
@@ -83,12 +89,12 @@ public class TtsSpeaker {
     public void speakResults(TextToSpeech tts, List<Recognition> results) {
         if (results.isEmpty()) {
             tts.speak("I don't understand what I see.", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
-            if (hasSenseOfHumor()) {
+            if (isFeelingFunnyNow()) {
                 tts.speak("Please don't unplug me, I'll do better next time.",
                         TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
             }
         } else {
-            if (hasSenseOfHumor()) {
+            if (isFeelingFunnyNow()) {
                 playJoke(tts);
             }
             if (results.size() == 1
@@ -133,8 +139,16 @@ public class TtsSpeaker {
         return list.get(RANDOM.nextInt(list.size()));
     }
 
-    private static boolean hasSenseOfHumor() {
-        return RANDOM.nextFloat() < HUMOR_THRESHOLD;
+    private boolean isFeelingFunnyNow() {
+        return mHasSenseOfHumor && RANDOM.nextFloat() < HUMOR_THRESHOLD;
+    }
+
+    public void setHasSenseOfHumor(boolean hasSenseOfHumor) {
+        this.mHasSenseOfHumor = hasSenseOfHumor;
+    }
+
+    public boolean hasSenseOfHumor() {
+        return mHasSenseOfHumor;
     }
 
     interface Utterance {

@@ -140,6 +140,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
                     CameraHandler.IMAGE_HEIGHT, TensorFlowImageClassifier.INPUT_SIZE);
 
             mTtsSpeaker = new TtsSpeaker();
+            mTtsSpeaker.setHasSenseOfHumor(true);
             mTtsEngine = new TextToSpeech(ImageClassifierActivity.this,
                     new TextToSpeech.OnInitListener() {
                         @Override
