@@ -5,8 +5,8 @@ apply plugin: 'com.android.application'
 apply plugin: 'de.undercouch.download'
 
 android {
-    compileSdkVersion 24
-    buildToolsVersion "24.0.3"
+    compileSdkVersion 25
+    buildToolsVersion '25.0.2'
 
     lintOptions {
         abortOnError false
@@ -15,7 +15,7 @@ android {
     defaultConfig {
         applicationId = 'com.example.androidthings.imageclassifier'
         minSdkVersion 24
-        targetSdkVersion 24
+        targetSdkVersion 25
     }
     buildTypes {
         release {
