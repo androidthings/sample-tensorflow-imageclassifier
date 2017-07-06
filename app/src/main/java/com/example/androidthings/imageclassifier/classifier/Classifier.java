@@ -44,17 +44,11 @@ public interface Classifier {
          */
         private final Float confidence;
 
-        /**
-         * Optional location within the source image for the location of the recognized object.
-         */
-        private final RectF location;
-
         public Recognition(
-                final String id, final String title, final Float confidence, final RectF location) {
+                final String id, final String title, final Float confidence) {
             this.id = id;
             this.title = title;
             this.confidence = confidence;
-            this.location = location;
         }
 
         public String getId() {
@@ -67,10 +61,6 @@ public interface Classifier {
 
         public Float getConfidence() {
             return confidence;
-        }
-
-        public RectF getLocation() {
-            return new RectF(location);
         }
 
         @Override
@@ -88,15 +78,11 @@ public interface Classifier {
                 resultString += String.format("(%.1f%%) ", confidence * 100.0f);
             }
 
-            if (location != null) {
-                resultString += location + " ";
-            }
-
             return resultString.trim();
         }
     }
 
-    List<Recognition> recognizeImage(Bitmap bitmap);
+    List<Recognition> doRecognize(Bitmap bitmap);
 
-    void close();
+    void destroyClassifier();
 }
