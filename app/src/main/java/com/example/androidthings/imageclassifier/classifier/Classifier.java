@@ -96,7 +96,7 @@ public interface Classifier {
         }
     }
 
-    List<Classifier.Recognition> doRecognize(Bitmap bitmap);
+    List<Recognition> recognizeImage(Bitmap bitmap);
 
-    void destroyClassifier();
+    void close();
 }

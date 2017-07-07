@@ -53,6 +53,9 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     private static final String TAG = "ImageClassifierActivity";
     private static final int PERMISSIONS_REQUEST = 1;
 
+    private static final String BUTTON_PIN = "BCM21";
+    private static final String LED_PIN = "BCM6";
+
     private ImagePreprocessor mImagePreprocessor;
     private TextToSpeech mTtsEngine;
     private TtsSpeaker mTtsSpeaker;
@@ -100,18 +103,33 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     }
 
     private void initPIO() {
-        PeripheralManagerService pioService = new PeripheralManagerService();
-        try {
-            mReadyLED = pioService.openGpio(BoardDefaults.getGPIOForLED());
-            mReadyLED.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
-            mButtonDriver = new ButtonInputDriver(
-                    BoardDefaults.getGPIOForButton(),
-                    Button.LogicState.PRESSED_WHEN_LOW,
-                    KeyEvent.KEYCODE_ENTER);
-            mButtonDriver.register();
-        } catch (IOException e) {
-            mButtonDriver = null;
-            Log.w(TAG, "Could not open GPIO pins", e);
+        PeripheralManagerService service = new PeripheralManagerService();
+        List<String> gpioList = service.getGpioList();
+        if (gpioList.contains(BUTTON_PIN)) {
+            try {
+                mButtonDriver = new ButtonInputDriver(BUTTON_PIN, Button.LogicState.PRESSED_WHEN_LOW,
+                        KeyEvent.KEYCODE_ENTER);
+                mButtonDriver.register();
+            } catch (IOException e) {
+                mButtonDriver = null;
+                Log.w(TAG, "Could not open GPIO", e);
+            }
+        }
+        if (mButtonDriver == null) {
+            Log.w(TAG, "Cannot find pin " + BUTTON_PIN + ". Ignoring push button on PIO. " +
+                    "Use a keyboard instead");
+        }
+        if (gpioList.contains(LED_PIN)) {
+            try {
+                mReadyLED = service.openGpio(LED_PIN);
+                mReadyLED.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            } catch (IOException e) {
+                mReadyLED = null;
+                Log.w(TAG, "Could not open GPIO", e);
+            }
+        }
+        if (mReadyLED == null) {
+            Log.w(TAG, "Cannot find pin " + LED_PIN + ". Ignoring ready indicator LED.");
         }
     }
 
@@ -119,7 +137,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         @Override
         public void run() {
             mImagePreprocessor = new ImagePreprocessor(CameraHandler.IMAGE_WIDTH,
-                    CameraHandler.IMAGE_HEIGHT, Helper.IMAGE_SIZE);
+                    CameraHandler.IMAGE_HEIGHT, TensorFlowImageClassifier.INPUT_SIZE);
 
             mTtsSpeaker = new TtsSpeaker();
             mTtsSpeaker.setHasSenseOfHumor(true);
@@ -216,7 +234,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
             }
         });
 
-        final List<Classifier.Recognition> results = mTensorFlowClassifier.doRecognize(bitmap);
+        final List<Classifier.Recognition> results = mTensorFlowClassifier.recognizeImage(bitmap);
 
         Log.d(TAG, "Got the following results from Tensorflow: " + results);
         if (mTtsEngine != null) {
@@ -225,7 +243,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         } else {
             // if theres no TTS, we don't need to wait until the utterance is spoken, so we set
             // to ready right away.
-            setReady(true);
+           setReady(true);
         }
 
         runOnUiThread(new Runnable() {
@@ -234,7 +252,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
                 for (int i = 0; i < mResultViews.length; i++) {
                     if (results.size() > i) {
                         Classifier.Recognition r = results.get(i);
-                        mResultViews[i].setText(r.getTitle() + " : " + r.getConfidence().toString());
+                        mResultViews[i].setText(r.toString());
                     } else {
                         mResultViews[i].setText(null);
                     }
@@ -260,10 +278,9 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
             // close quietly
         }
         try {
-            mTensorFlowClassifier.destroyClassifier();
-            // close quietly
+            if (mTensorFlowClassifier != null) mTensorFlowClassifier.close();
         } catch (Throwable t) {
-
+            // close quietly
         }
         try {
             if (mButtonDriver != null) mButtonDriver.close();
@@ -282,7 +299,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     // regular Android device.
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[],
-                                           @NonNull int[] grantResults) {
+            @NonNull int[] grantResults) {
         switch (requestCode) {
             case PERMISSIONS_REQUEST: {
                 if (grantResults.length > 0
