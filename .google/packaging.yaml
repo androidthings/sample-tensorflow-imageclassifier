@@ -1,0 +1,7 @@
+status:       PUBLISHED
+technologies: [Android, IoT]
+categories:   [Android Things]
+languages:    [Java]
+solutions:    [IoT]
+github:       androidthings/sample-tensorflow-imageclassifier
+license:      apache2
