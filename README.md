@@ -16,10 +16,12 @@ The TensorFlow training was done using Google inception model and the trained da
 is used to run inference and generate classification labels via TensorFlow Android Inference
 APIs.
 
-The AAR in [app/libs](blob/master/app/libs) is built by combining the native
-libraries for x86 and ARM platforms from the
-[Android TensorFlow inference library](http://ci.tensorflow.org/view/Nightly/job/nightly-android/lastSuccessfulBuild/artifact/out/native/libtensorflow_inference.so/).
-By using this AAR, the app does not need to be built with the NDK toolset.
+This sample uses the [TensorFlow inference library](https://bintray.com/google/tensorflow/tensorflow-android) and does not require any native build tools. You can add the TensorFlow inference library to your project by adding a dependency in your build.gradle, for example:
+```
+dependencies {
+    compile 'org.tensorflow:tensorflow-android:1.2.0'
+}
+```
 
 Note: this sample requires a camera. Find an appropriate board in the [documentation](https://developer.android.com/things/hardware/developer-kits.html).
 
