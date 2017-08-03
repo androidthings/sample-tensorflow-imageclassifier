@@ -16,23 +16,19 @@
 package com.example.androidthings.imageclassifier;
 
 import android.app.Activity;
-import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.media.Image;
 import android.media.ImageReader;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
-import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.example.androidthings.imageclassifier.classifier.Classifier;
 import com.example.androidthings.imageclassifier.classifier.TensorFlowImageClassifier;
@@ -46,12 +42,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static android.Manifest.permission.CAMERA;
-import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
-
 public class ImageClassifierActivity extends Activity implements ImageReader.OnImageAvailableListener {
     private static final String TAG = "ImageClassifierActivity";
-    private static final int PERMISSIONS_REQUEST = 1;
 
     private ImagePreprocessor mImagePreprocessor;
     private TextToSpeech mTtsEngine;
@@ -81,13 +73,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         mResultViews[1] = (TextView) findViewById(R.id.result2);
         mResultViews[2] = (TextView) findViewById(R.id.result3);
 
-        if (hasPermission()) {
-            if (savedInstanceState == null) {
-                init();
-            }
-        } else {
-            requestPermission();
-        }
+        init();
     }
 
     private void init() {
@@ -275,41 +261,4 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         }
     }
 
-    // Permission-related methods. This is not needed for Android Things, where permissions are
-    // automatically granted. However, it is kept here in case the developer needs to test on a
-    // regular Android device.
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[],
-                                           @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS_REQUEST: {
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED
-                        && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
-                    init();
-                } else {
-                    requestPermission();
-                }
-            }
-        }
-    }
-
-    private boolean hasPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return true;
-        }
-        return checkSelfPermission(CAMERA) == PackageManager.PERMISSION_GRANTED
-                && checkSelfPermission(WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void requestPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (shouldShowRequestPermissionRationale(CAMERA) ||
-                    shouldShowRequestPermissionRationale(WRITE_EXTERNAL_STORAGE)) {
-                Toast.makeText(this, "Camera AND storage permission are required for this demo",
-                        Toast.LENGTH_LONG).show();
-            }
-            requestPermissions(new String[]{CAMERA, WRITE_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST);
-        }
-    }
 }
