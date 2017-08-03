@@ -176,9 +176,9 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     };
 
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        Log.d(TAG, "Received key down: " + keyCode + ". Ready = " + mReady.get());
-        if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        Log.d(TAG, "Received key up: " + keyCode + ". Ready = " + mReady.get());
+        if (keyCode == KeyEvent.KEYCODE_ENTER) {
             if (mReady.get()) {
                 setReady(false);
                 mBackgroundHandler.post(mBackgroundClickHandler);
@@ -187,7 +187,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
             }
             return true;
         }
-        return super.onKeyDown(keyCode, event);
+        return super.onKeyUp(keyCode, event);
     }
 
     private void setReady(boolean ready) {
