@@ -23,7 +23,6 @@ import android.graphics.Matrix;
 import android.media.ThumbnailUtils;
 import android.os.Environment;
 import android.util.Log;
-import android.util.Pair;
 
 import com.example.androidthings.imageclassifier.classifier.Classifier;
 
@@ -58,8 +57,8 @@ public class Helper {
     public static final long[] NETWORK_STRUCTURE = {1, IMAGE_SIZE, IMAGE_SIZE, 3};
     public static final int NUM_CLASSES = 1008;
 
-    public static final int MAX_BEST_RESULTS = 3;
-    public static final float RESULT_CONFIDENCE_THRESHOLD = 0.1f;
+    private static final int MAX_BEST_RESULTS = 3;
+    private static final float RESULT_CONFIDENCE_THRESHOLD = 0.1f;
 
     public static String[] readLabels(Context context) {
         AssetManager assetManager = context.getAssets();

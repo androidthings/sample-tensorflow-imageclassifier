@@ -118,8 +118,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     private Runnable mInitializeOnBackground = new Runnable() {
         @Override
         public void run() {
-            mImagePreprocessor = new ImagePreprocessor(CameraHandler.IMAGE_WIDTH,
-                    CameraHandler.IMAGE_HEIGHT, Helper.IMAGE_SIZE);
+            mImagePreprocessor = new ImagePreprocessor();
 
             mTtsSpeaker = new TtsSpeaker();
             mTtsSpeaker.setHasSenseOfHumor(true);
