@@ -53,7 +53,6 @@ com.example.androidthings.imageclassifier/.ImageClassifierActivity
 
 If you have everything set up correctly:
 
-0. Reboot the device to get all permissions granted; see [Known issues in release notes](https://developer.android.com/things/preview/releases.html#known_issues)
 0. Wait until the LED turns on
 0. Point the camera to something like a dog, cat or a furniture
 0. Push the button to take a picture
@@ -80,5 +79,3 @@ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
 License for the specific language governing permissions and limitations under
 the License.
-
-[dp2_release_notes]: https://developer.android.com/things/preview/releases.html#developer_preview_2
