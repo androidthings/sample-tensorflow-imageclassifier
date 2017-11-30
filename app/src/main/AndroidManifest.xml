@@ -16,6 +16,7 @@
 -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.example.androidthings.imageclassifier">
 
     <uses-permission android:name="android.permission.CAMERA" />
@@ -46,6 +47,13 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+
+        <!-- Use tools:replace to stop the contrib-driver dependency from overriding our
+         required="false" setting.
+         Source: https://github.com/androidthings/new-project-template/issues/1#issuecomment-309288101 -->
+        <uses-library android:name="com.google.android.things"
+            android:required="false"
+            tools:replace="android:required" />
     </application>
 
 </manifest>
