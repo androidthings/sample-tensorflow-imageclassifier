@@ -16,6 +16,8 @@
 package com.example.androidthings.imageclassifier;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.media.Image;
 import android.media.ImageReader;
@@ -26,6 +28,7 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -77,14 +80,33 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     }
 
     private void init() {
-        initPIO();
+        if (isAndroidThingsDevice(this)) {
+            initPIO();
+        }
 
         mBackgroundThread = new HandlerThread("BackgroundThread");
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
         mBackgroundHandler.post(mInitializeOnBackground);
+
+        // Let the user touch the screen to take a photo
+        findViewById(R.id.container).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mReady.get()) {
+                    Log.i(TAG, "Taking photo");
+                    setReady(false);
+                    mBackgroundHandler.post(mBackgroundClickHandler);
+                } else {
+                    Log.i(TAG, "Sorry, processing hasn't finished. Try again in a few seconds");
+                }
+            }
+        });
     }
 
+    /**
+     * This method should only be called when running on an Android Things device.
+     */
     private void initPIO() {
         PeripheralManagerService pioService = new PeripheralManagerService();
         try {
@@ -261,4 +283,17 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         }
     }
 
+    /**
+     * @return true if this device is running Android Things.
+     *
+     * Source: https://stackoverflow.com/a/44171734/112705
+     */
+    private boolean isAndroidThingsDevice(Context context) {
+        // We can't use PackageManager.FEATURE_EMBEDDED here as it was only added in API level 26,
+        // and we currently target a lower minSdkVersion
+        final PackageManager pm = context.getPackageManager();
+        boolean isRunningAndroidThings = pm.hasSystemFeature("android.hardware.type.embedded");
+        Log.d(TAG, "isRunningAndroidThings: " + isRunningAndroidThings);
+        return isRunningAndroidThings;
+    }
 }
