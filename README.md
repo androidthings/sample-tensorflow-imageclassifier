@@ -47,8 +47,7 @@ On Android Studio, click on the "Run" button.
 If you prefer to run on the command line, type
 ```bash
 ./gradlew installDebug
-adb shell am start
-com.example.androidthings.imageclassifier/.ImageClassifierActivity
+adb shell am start com.example.androidthings.imageclassifier/.ImageClassifierActivity
 ```
 
 If you have everything set up correctly:
