@@ -2,7 +2,6 @@
 // in Android Studio with Gradle.
 
 apply plugin: 'com.android.application'
-apply plugin: 'de.undercouch.download'
 
 android {
     compileSdkVersion 26
@@ -28,35 +27,17 @@ android {
             assets.srcDirs = ['./assets']
         }
     }
-}
-
-// Download model zip file into ../../assets directory
-// unzip it to demo project's own ./assets directory
-import de.undercouch.gradle.tasks.download.Download
-task downloadFile(type: Download) {
-    src 'https://storage.googleapis.com/download.tensorflow.org/models/inception5h.zip'
-    dest projectDir.toString() + '/../../assets/inception.zip'
-}
-task unzip(type: Copy) {
-    from zipTree(projectDir.toString() + '/../../assets/inception.zip')
-    into file(projectDir.toString() + '/assets')
-}
-unzip.dependsOn downloadFile
-
-project.afterEvaluate {
-    if (!(new File(projectDir.toString() + '/assets')).exists()) {
-        preBuild.dependsOn unzip
+    aaptOptions {
+        noCompress "tflite"
     }
 }
 
 repositories {
-    flatDir {
-        dirs 'libs'
-    }
+    jcenter()
 }
 
 dependencies {
-    implementation 'com.google.android.things.contrib:driver-button:0.3'
-    implementation 'org.tensorflow:tensorflow-android:1.2.0'
-    compileOnly 'com.google.android.things:androidthings:0.6-devpreview'
+    implementation 'com.google.android.things.contrib:driver-button:0.4'
+    implementation 'org.tensorflow:tensorflow-lite:0.1.1'
+    compileOnly 'com.google.android.things:androidthings:0.6.1-devpreview'
 }

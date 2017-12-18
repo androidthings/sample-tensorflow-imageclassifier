@@ -17,9 +17,11 @@ package com.example.androidthings.imageclassifier;
 
 import android.speech.tts.TextToSpeech;
 
-import com.example.androidthings.imageclassifier.classifier.Classifier.Recognition;
+import com.example.androidthings.imageclassifier.classifier.Recognition;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.NavigableMap;
@@ -32,7 +34,7 @@ public class TtsSpeaker {
 
     private static final String UTTERANCE_ID
             = "com.example.androidthings.imageclassifier.UTTERANCE_ID";
-    private static final float HUMOR_THRESHOLD = 0.2f;
+    private static final float HUMOR_THRESHOLD = 0.3f;
     private static final Random RANDOM = new Random();
 
     private static final List<Utterance> SHUTTER_SOUNDS = new ArrayList<>();
@@ -42,10 +44,10 @@ public class TtsSpeaker {
         SHUTTER_SOUNDS.add(new ShutterUtterance("Cheeeeese!"));
         SHUTTER_SOUNDS.add(new ShutterUtterance("Smile!"));
 
-        JOKES.add(new SimpleUtterance("It's a bird! It's a plane! It's... it's..."));
-        JOKES.add(new SimpleUtterance("Oops, someone left the lens cap on! Just kidding..."));
-        JOKES.add(new SimpleUtterance("Hey, that looks like me! Just kidding..."));
         JOKES.add(new ISeeDeadPeopleUtterance());
+        JOKES.add(new SupermanUtterance());
+        JOKES.add(new LooksLikeMeUtterance());
+        JOKES.add(new LensCapOnUtterance());
     }
 
     /**
@@ -86,7 +88,7 @@ public class TtsSpeaker {
         getRandomElement(SHUTTER_SOUNDS).speak(tts);
     }
 
-    public void speakResults(TextToSpeech tts, List<Recognition> results) {
+    public void speakResults(TextToSpeech tts, Collection<Recognition> results) {
         if (results.isEmpty()) {
             tts.speak("I don't understand what I see.", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
             if (isFeelingFunnyNow()) {
@@ -97,14 +99,18 @@ public class TtsSpeaker {
             if (isFeelingFunnyNow()) {
                 playJoke(tts);
             }
+            Iterator<Recognition> it = results.iterator();
+
+            Recognition first = it.hasNext() ? it.next() : null;
+            Recognition second = it.hasNext() ? it.next() : null;
             if (results.size() == 1
-                    || results.get(0).getConfidence() > SINGLE_ANSWER_CONFIDENCE_THRESHOLD) {
+                    || first.getConfidence() > SINGLE_ANSWER_CONFIDENCE_THRESHOLD) {
                 tts.speak(String.format(Locale.getDefault(),
-                        "I see a %s", results.get(0).getTitle()),
+                        "I see a %s", first.getTitle()),
                         TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
             } else {
                 tts.speak(String.format(Locale.getDefault(), "This is a %s, or maybe a %s",
-                        results.get(0).getTitle(), results.get(1).getTitle()),
+                        first.getTitle(), second.getTitle()),
                         TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
             }
         }
@@ -187,12 +193,47 @@ public class TtsSpeaker {
     }
 
     private static class ISeeDeadPeopleUtterance implements Utterance {
-
         @Override
         public void speak(TextToSpeech tts) {
             tts.setPitch(0.2f);
             tts.speak("I see dead people...", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
             tts.setPitch(1);
+            tts.speak("Just kidding...", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+        }
+    }
+
+    private static class SupermanUtterance implements Utterance {
+        @Override
+        public void speak(TextToSpeech tts) {
+            tts.setPitch(1.8f);
+            tts.setSpeechRate(1.4f);
+            tts.speak("It's a bird! It's a plane! It's superman", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+            tts.setPitch(1);
+            tts.setSpeechRate(1f);
+            tts.speak("Just kidding...", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+        }
+    }
+
+    private static class LooksLikeMeUtterance implements Utterance {
+        @Override
+        public void speak(TextToSpeech tts) {
+            tts.setPitch(1.3f);
+            tts.setSpeechRate(1.6f);
+            tts.speak("Hey, that looks like me!", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+            tts.setPitch(1);
+            tts.setSpeechRate(1f);
+            tts.speak("Just kidding...", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+        }
+    }
+
+    private static class LensCapOnUtterance implements Utterance {
+        @Override
+        public void speak(TextToSpeech tts) {
+            tts.setPitch(0.7f);
+            tts.setSpeechRate(1.6f);
+            tts.speak("Oops, someone left the lens cap on!", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
+            tts.setPitch(1);
+            tts.setSpeechRate(1f);
             tts.speak("Just kidding...", TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID);
         }
     }

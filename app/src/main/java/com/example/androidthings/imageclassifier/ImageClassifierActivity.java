@@ -17,6 +17,7 @@ package com.example.androidthings.imageclassifier;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.media.Image;
@@ -26,6 +27,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
@@ -33,7 +35,7 @@ import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import com.example.androidthings.imageclassifier.classifier.Classifier;
+import com.example.androidthings.imageclassifier.classifier.Recognition;
 import com.example.androidthings.imageclassifier.classifier.TensorFlowImageClassifier;
 import com.google.android.things.contrib.driver.button.Button;
 import com.google.android.things.contrib.driver.button.ButtonInputDriver;
@@ -41,12 +43,24 @@ import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManagerService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ImageClassifierActivity extends Activity implements ImageReader.OnImageAvailableListener {
     private static final String TAG = "ImageClassifierActivity";
+
+    private static final int PREVIEW_IMAGE_WIDTH = 640;
+    private static final int PREVIEW_IMAGE_HEIGHT = 480;
+    private static final int TF_INPUT_IMAGE_WIDTH = 224;
+    private static final int TF_INPUT_IMAGE_HEIGHT = 224;
+
+    /* Key code used by GPIO button to trigger image capture */
+    private static final int SHUTTER_KEYCODE = KeyEvent.KEYCODE_CAMERA;
 
     private ImagePreprocessor mImagePreprocessor;
     private TextToSpeech mTtsEngine;
@@ -58,7 +72,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     private Handler mBackgroundHandler;
 
     private ImageView mImage;
-    private TextView[] mResultViews;
+    private TextView mResultText;
 
     private AtomicBoolean mReady = new AtomicBoolean(false);
     private ButtonInputDriver mButtonDriver;
@@ -70,11 +84,8 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         setContentView(R.layout.activity_camera);
-        mImage = (ImageView) findViewById(R.id.imageView);
-        mResultViews = new TextView[3];
-        mResultViews[0] = (TextView) findViewById(R.id.result1);
-        mResultViews[1] = (TextView) findViewById(R.id.result2);
-        mResultViews[2] = (TextView) findViewById(R.id.result3);
+        mImage = findViewById(R.id.imageView);
+        mResultText = findViewById(R.id.resultText);
 
         init();
     }
@@ -88,20 +99,6 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
         mBackgroundHandler.post(mInitializeOnBackground);
-
-        // Let the user touch the screen to take a photo
-        findViewById(R.id.container).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (mReady.get()) {
-                    Log.i(TAG, "Taking photo");
-                    setReady(false);
-                    mBackgroundHandler.post(mBackgroundClickHandler);
-                } else {
-                    Log.i(TAG, "Sorry, processing hasn't finished. Try again in a few seconds");
-                }
-            }
-        });
     }
 
     /**
@@ -115,7 +112,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
             mButtonDriver = new ButtonInputDriver(
                     BoardDefaults.getGPIOForButton(),
                     Button.LogicState.PRESSED_WHEN_LOW,
-                    KeyEvent.KEYCODE_ENTER);
+                    SHUTTER_KEYCODE);
             mButtonDriver.register();
         } catch (IOException e) {
             mButtonDriver = null;
@@ -126,7 +123,8 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     private Runnable mInitializeOnBackground = new Runnable() {
         @Override
         public void run() {
-            mImagePreprocessor = new ImagePreprocessor();
+            mImagePreprocessor = new ImagePreprocessor(PREVIEW_IMAGE_WIDTH, PREVIEW_IMAGE_HEIGHT,
+                    TF_INPUT_IMAGE_WIDTH, TF_INPUT_IMAGE_HEIGHT);
 
             mTtsSpeaker = new TtsSpeaker();
             mTtsSpeaker.setHasSenseOfHumor(true);
@@ -146,11 +144,16 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
                         }
                     });
             mCameraHandler = CameraHandler.getInstance();
-            mCameraHandler.initializeCamera(
-                    ImageClassifierActivity.this, mBackgroundHandler,
+            mCameraHandler.initializeCamera(ImageClassifierActivity.this,
+                    PREVIEW_IMAGE_WIDTH, PREVIEW_IMAGE_HEIGHT, mBackgroundHandler,
                     ImageClassifierActivity.this);
 
-            mTensorFlowClassifier = new TensorFlowImageClassifier(ImageClassifierActivity.this);
+            try {
+                mTensorFlowClassifier = new TensorFlowImageClassifier(ImageClassifierActivity.this,
+                        TF_INPUT_IMAGE_WIDTH, TF_INPUT_IMAGE_HEIGHT);
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot initialize TFLite Classifier", e);
+            }
 
             setReady(true);
         }
@@ -185,19 +188,39 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        Log.d(TAG, "Received key up: " + keyCode + ". Ready = " + mReady.get());
-        if (keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (mReady.get()) {
-                setReady(false);
-                mBackgroundHandler.post(mBackgroundClickHandler);
-            } else {
-                Log.i(TAG, "Sorry, processing hasn't finished. Try again in a few seconds");
-            }
+        Log.d(TAG, "Received key up: " + keyCode);
+        if (keyCode == SHUTTER_KEYCODE) {
+            startImageCapture();
             return true;
         }
         return super.onKeyUp(keyCode, event);
     }
 
+    /**
+     * Invoked when the user taps on the UI from a touch-enabled display
+     */
+    public void onShutterClick(View view) {
+        Log.d(TAG, "Received screen tap");
+        startImageCapture();
+    }
+
+    /**
+     * Verify and initiate a new image capture
+     */
+    private void startImageCapture() {
+        Log.d(TAG, "Ready for another capture? " + mReady.get());
+        if (mReady.get()) {
+            setReady(false);
+            mResultText.setText("Hold on...");
+            mBackgroundHandler.post(mBackgroundClickHandler);
+        } else {
+            Log.i(TAG, "Sorry, processing hasn't finished. Try again in a few seconds");
+        }
+    }
+
+    /**
+     * Mark the system as ready for a new image capture
+     */
     private void setReady(boolean ready) {
         mReady.set(ready);
         if (mReadyLED != null) {
@@ -223,9 +246,34 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
             }
         });
 
-        final List<Classifier.Recognition> results = mTensorFlowClassifier.doRecognize(bitmap);
+        final Collection<Recognition> results = mTensorFlowClassifier.doRecognize(bitmap);
 
         Log.d(TAG, "Got the following results from Tensorflow: " + results);
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (results == null || results.isEmpty()) {
+                    mResultText.setText("I don't understand what I see");
+                } else {
+                    StringBuilder sb = new StringBuilder();
+                    Iterator<Recognition> it = results.iterator();
+                    int counter = 0;
+                    while (it.hasNext()) {
+                        Recognition r = it.next();
+                        sb.append(r.getTitle());
+                        counter++;
+                        if (counter < results.size() - 1 ) {
+                            sb.append(", ");
+                        } else if (counter == results.size() - 1) {
+                            sb.append(" or ");
+                        }
+                    }
+                    mResultText.setText(sb.toString());
+                }
+            }
+        });
+
         if (mTtsEngine != null) {
             // speak out loud the result of the image recognition
             mTtsSpeaker.speakResults(mTtsEngine, results);
@@ -234,20 +282,6 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
             // to ready right away.
             setReady(true);
         }
-
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < mResultViews.length; i++) {
-                    if (results.size() > i) {
-                        Classifier.Recognition r = results.get(i);
-                        mResultViews[i].setText(r.getTitle() + " : " + r.getConfidence().toString());
-                    } else {
-                        mResultViews[i].setText(null);
-                    }
-                }
-            }
-        });
     }
 
     @Override

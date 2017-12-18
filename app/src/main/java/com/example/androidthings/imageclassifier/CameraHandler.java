@@ -15,6 +15,7 @@
  */
 package com.example.androidthings.imageclassifier;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.ImageFormat;
 import android.hardware.camera2.CameraAccessException;
@@ -31,63 +32,174 @@ import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.util.Log;
 import android.util.Size;
+
 import java.util.Collections;
-import static android.content.Context.CAMERA_SERVICE;
 
 public class CameraHandler {
     private static final String TAG = CameraHandler.class.getSimpleName();
 
-    public static final int IMAGE_WIDTH = 640;
-    public static final int IMAGE_HEIGHT = 480;
-
     private static final int MAX_IMAGES = 1;
     private CameraDevice mCameraDevice;
     private CameraCaptureSession mCaptureSession;
+    private boolean initialized;
+
     /**
      * An {@link ImageReader} that handles still image capture.
      */
     private ImageReader mImageReader;
+
     // Lazy-loaded singleton, so only one instance of the camera is created.
     private CameraHandler() {
     }
+
     private static class InstanceHolder {
         private static CameraHandler mCamera = new CameraHandler();
     }
+
     public static CameraHandler getInstance() {
         return InstanceHolder.mCamera;
     }
+
     /**
      * Initialize the camera device
      */
-    public void initializeCamera(Context context,
+    @SuppressLint("MissingPermission")
+    public void initializeCamera(Context context, int previewWidth, int previewHeight,
                                  Handler backgroundHandler,
                                  ImageReader.OnImageAvailableListener imageAvailableListener) {
+        if (initialized) {
+            throw new IllegalStateException(
+                    "CameraHandler is already initialized or is initializing");
+        }
+        initialized = true;
+
         // Discover the camera instance
         CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-        String[] camIds = {};
+        String[] camIds = null;
         try {
             camIds = manager.getCameraIdList();
         } catch (CameraAccessException e) {
-            Log.d(TAG, "Cam access exception getting IDs", e);
+            Log.w(TAG, "Cannot get the list of available cameras", e);
         }
-        if (camIds.length < 1) {
+        if (camIds == null || camIds.length < 1) {
             Log.d(TAG, "No cameras found");
             return;
         }
-        String id = camIds[0];
-        Log.d(TAG, "Using camera id " + id);
+        Log.d(TAG, "Using camera id " + camIds[0]);
+
         // Initialize the image processor
-        mImageReader = ImageReader.newInstance(IMAGE_WIDTH, IMAGE_HEIGHT,
-                ImageFormat.JPEG, MAX_IMAGES);
-        mImageReader.setOnImageAvailableListener(
-                imageAvailableListener, backgroundHandler);
+        mImageReader = ImageReader.newInstance(previewWidth, previewHeight, ImageFormat.JPEG,
+                MAX_IMAGES);
+        mImageReader.setOnImageAvailableListener(imageAvailableListener, backgroundHandler);
+
         // Open the camera resource
         try {
-            manager.openCamera(id, mStateCallback, backgroundHandler);
+            manager.openCamera(camIds[0], mStateCallback, backgroundHandler);
         } catch (CameraAccessException cae) {
             Log.d(TAG, "Camera access exception", cae);
         }
     }
+
+    /**
+     * Begin a still image capture
+     */
+    public void takePicture() {
+        if (mCameraDevice == null) {
+            Log.w(TAG, "Cannot capture image. Camera not initialized.");
+            return;
+        }
+        // Create a CameraCaptureSession for capturing still images.
+        try {
+            mCameraDevice.createCaptureSession(
+                    Collections.singletonList(mImageReader.getSurface()),
+                    mSessionCallback,
+                    null);
+        } catch (CameraAccessException cae) {
+            Log.e(TAG, "Cannot create camera capture session", cae);
+        }
+    }
+
+    /**
+     * Execute a new capture request within the active session
+     */
+    private void triggerImageCapture() {
+        try {
+            final CaptureRequest.Builder captureBuilder =
+                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            captureBuilder.addTarget(mImageReader.getSurface());
+            captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+            Log.d(TAG, "Capture request created.");
+            mCaptureSession.capture(captureBuilder.build(), mCaptureCallback, null);
+        } catch (CameraAccessException cae) {
+            Log.e(TAG, "Cannot trigger a capture request");
+        }
+    }
+
+    private void closeCaptureSession() {
+        if (mCaptureSession != null) {
+            try {
+                mCaptureSession.close();
+            } catch (Exception ex) {
+                Log.w(TAG, "Could not close capture session", ex);
+            }
+            mCaptureSession = null;
+        }
+    }
+
+    /**
+     * Close the camera resources
+     */
+    public void shutDown() {
+        try {
+            closeCaptureSession();
+            if (mCameraDevice != null) {
+                mCameraDevice.close();
+            }
+            mImageReader.close();
+        } finally {
+            initialized = false;
+        }
+    }
+
+    /**
+     * Helpful debugging method:  Dump all supported camera formats to log.  You don't need to run
+     * this for normal operation, but it's very helpful when porting this code to different
+     * hardware.
+     */
+    public static void dumpFormatInfo(Context context) {
+        // Discover the camera instance
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+        String[] camIds = null;
+        try {
+            camIds = manager.getCameraIdList();
+        } catch (CameraAccessException e) {
+            Log.w(TAG, "Cannot get the list of available cameras", e);
+        }
+        if (camIds == null || camIds.length < 1) {
+            Log.d(TAG, "No cameras found");
+            return;
+        }
+        Log.d(TAG, "Using camera id " + camIds[0]);
+        try {
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(camIds[0]);
+            StreamConfigurationMap configs = characteristics.get(
+                    CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            for (int format : configs.getOutputFormats()) {
+                Log.d(TAG, "Getting sizes for format: " + format);
+                for (Size s : configs.getOutputSizes(format)) {
+                    Log.d(TAG, "\t" + s.toString());
+                }
+            }
+            int[] effects = characteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_EFFECTS);
+            for (int effect : effects) {
+                Log.d(TAG, "Effect available: " + effect);
+            }
+        } catch (CameraAccessException e) {
+            Log.d(TAG, "Cam access exception getting characteristics.");
+        }
+    }
+
+
     /**
      * Callback handling device state changes
      */
@@ -115,24 +227,7 @@ public class CameraHandler {
             mCameraDevice = null;
         }
     };
-    /**
-     * Begin a still image capture
-     */
-    public void takePicture() {
-        if (mCameraDevice == null) {
-            Log.w(TAG, "Cannot capture image. Camera not initialized.");
-            return;
-        }
-        // Here, we create a CameraCaptureSession for capturing still images.
-        try {
-            mCameraDevice.createCaptureSession(
-                    Collections.singletonList(mImageReader.getSurface()),
-                    mSessionCallback,
-                    null);
-        } catch (CameraAccessException cae) {
-            Log.d(TAG, "access exception while preparing pic", cae);
-        }
-    }
+
     /**
      * Callback handling session state changes
      */
@@ -153,21 +248,7 @@ public class CameraHandler {
                     Log.w(TAG, "Failed to configure camera");
                 }
             };
-    /**
-     * Execute a new capture request within the active session
-     */
-    private void triggerImageCapture() {
-        try {
-            final CaptureRequest.Builder captureBuilder =
-                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
-            captureBuilder.addTarget(mImageReader.getSurface());
-            captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
-            Log.d(TAG, "Capture request created.");
-            mCaptureSession.capture(captureBuilder.build(), mCaptureCallback, null);
-        } catch (CameraAccessException cae) {
-            Log.d(TAG, "camera capture exception");
-        }
-    }
+
     /**
      * Callback handling capture session events
      */
@@ -189,61 +270,4 @@ public class CameraHandler {
                 }
             };
 
-    private void closeCaptureSession() {
-        if (mCaptureSession != null) {
-            try {
-                mCaptureSession.close();
-            } catch (Exception ex) {
-                Log.e(TAG, "Could not close capture session", ex);
-            }
-            mCaptureSession = null;
-        }
-    }
-
-    /**
-     * Close the camera resources
-     */
-    public void shutDown() {
-        closeCaptureSession();
-        if (mCameraDevice != null) {
-            mCameraDevice.close();
-        }
-    }
-
-    /**
-     * Helpful debugging method:  Dump all supported camera formats to log.  You don't need to run
-     * this for normal operation, but it's very helpful when porting this code to different
-     * hardware.
-     */
-    public static void dumpFormatInfo(Context context) {
-        CameraManager manager = (CameraManager) context.getSystemService(CAMERA_SERVICE);
-        String[] camIds = {};
-        try {
-            camIds = manager.getCameraIdList();
-        } catch (CameraAccessException e) {
-            Log.d(TAG, "Cam access exception getting IDs");
-        }
-        if (camIds.length < 1) {
-            Log.d(TAG, "No cameras found");
-        }
-        String id = camIds[0];
-        Log.d(TAG, "Using camera id " + id);
-        try {
-            CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
-            StreamConfigurationMap configs = characteristics.get(
-                    CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            for (int format : configs.getOutputFormats()) {
-                Log.d(TAG, "Getting sizes for format: " + format);
-                for (Size s : configs.getOutputSizes(format)) {
-                    Log.d(TAG, "\t" + s.toString());
-                }
-            }
-            int[] effects = characteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_EFFECTS);
-            for (int effect : effects) {
-                Log.d(TAG, "Effect available: " + effect);
-            }
-        } catch (CameraAccessException e) {
-            Log.d(TAG, "Cam access exception getting characteristics.");
-        }
-    }
 }

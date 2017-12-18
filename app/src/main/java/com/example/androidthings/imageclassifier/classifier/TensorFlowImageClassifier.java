@@ -17,54 +17,69 @@ package com.example.androidthings.imageclassifier.classifier;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.os.SystemClock;
+import android.util.Log;
 
-import com.example.androidthings.imageclassifier.Helper;
+import org.tensorflow.lite.Interpreter;
 
-import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
-
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Collection;
 import java.util.List;
-import java.util.PriorityQueue;
 
 /**
  * A classifier specialized to label images using TensorFlow.
  */
-public class TensorFlowImageClassifier implements Classifier {
+public class TensorFlowImageClassifier {
 
     private static final String TAG = "TFImageClassifier";
 
-    private String[] labels;
+    private static final String LABELS_FILE = "labels.txt";
+    private static final String MODEL_FILE = "mobilenet_quant_v1_224.tflite";
 
-    // Pre-allocated buffers.
-    private float[] floatValues;
+    /** Dimensions of inputs. */
+    private static final int DIM_BATCH_SIZE = 1;
+    private static final int DIM_PIXEL_SIZE = 3;
+
+    /** Labels for categories that the TensorFlow model is trained for. */
+    private List<String> labels;
+
+    /** Cache to hold image data. */
+    private ByteBuffer imgData = null;
+
+    /** Inference results (Tensorflow Lite output). */
+    private byte[][] confidencePerLabel = null;
+
+    /** Pre-allocated buffer for intermediate bitmap pixels */
     private int[] intValues;
-    private float[] outputs;
 
-    private TensorFlowInferenceInterface inferenceInterface;
+    /** TensorFlow Lite engine */
+    private Interpreter tfLite;
 
     /**
-     * Initializes a native TensorFlow session for classifying images.
-     *
-     * @param context The activity that instantiates this.
+     * Initializes a TensorFlow Lite session for classifying images.
      */
-    public TensorFlowImageClassifier(Context context) {
-        this.inferenceInterface = new TensorFlowInferenceInterface(
-                context.getAssets(),
-                Helper.MODEL_FILE);
-        this.labels = Helper.readLabels(context);
+    public TensorFlowImageClassifier(Context context, int inputImageWidth, int inputImageHeight)
+            throws IOException {
+        this.tfLite = new Interpreter(TensorFlowHelper.loadModelFile(context, MODEL_FILE));
+        this.labels = TensorFlowHelper.readLabels(context, LABELS_FILE);
 
-        // Pre-allocate buffers.
-        intValues = new int[Helper.IMAGE_SIZE * Helper.IMAGE_SIZE];
-        floatValues = new float[Helper.IMAGE_SIZE * Helper.IMAGE_SIZE * 3];
-        outputs = new float[Helper.NUM_CLASSES];
+        imgData =
+                ByteBuffer.allocateDirect(
+                        DIM_BATCH_SIZE * inputImageWidth * inputImageHeight * DIM_PIXEL_SIZE);
+        imgData.order(ByteOrder.nativeOrder());
+        confidencePerLabel = new byte[1][labels.size()];
+
+        // Pre-allocate buffer for image pixels.
+        intValues = new int[inputImageWidth * inputImageHeight];
     }
 
     /**
      * Clean up the resources used by the classifier.
      */
     public void destroyClassifier() {
-        inferenceInterface.close();
+        tfLite.close();
     }
 
 
@@ -74,21 +89,17 @@ public class TensorFlowImageClassifier implements Classifier {
      *              format expected by the classification process, which can be time
      *              and power consuming.
      */
-    public List<Classifier.Recognition> doRecognize(Bitmap image) {
-        float[] pixels = Helper.getPixels(image, intValues, floatValues);
+    public Collection<Recognition> doRecognize(Bitmap image) {
+        TensorFlowHelper.convertBitmapToByteBuffer(image, intValues, imgData);
 
-        // Feed the pixels of the image into the TensorFlow Neural Network
-        inferenceInterface.feed(Helper.INPUT_NAME, pixels,
-                Helper.NETWORK_STRUCTURE);
-
-        // Run the TensorFlow Neural Network with the provided input
-        inferenceInterface.run(Helper.OUTPUT_NAMES);
-
-        // Extract the output from the neural network back into an array of confidence per category
-        inferenceInterface.fetch(Helper.OUTPUT_NAME, outputs);
+        long startTime = SystemClock.uptimeMillis();
+        // Here's where the magic happens!!!
+        tfLite.run(imgData, confidencePerLabel);
+        long endTime = SystemClock.uptimeMillis();
+        Log.d(TAG, "Timecost to run model inference: " + Long.toString(endTime - startTime));
 
         // Get the results with the highest confidence and map them to their labels
-        return Helper.getBestResults(outputs, labels);
+        return TensorFlowHelper.getBestResults(confidencePerLabel, labels);
     }
 
 }

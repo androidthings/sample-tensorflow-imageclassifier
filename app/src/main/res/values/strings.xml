@@ -18,5 +18,5 @@
     <string name="description_info">Info</string>
     <string name="request_permission">This sample needs camera permission.</string>
     <string name="camera_error">This device doesn\'t support Camera2 API.</string>
-    <string name="help_message">When the LED is on, press the button to capture an image</string>
+    <string name="help_message">Press the button or touch the screen</string>
 </resources>

@@ -1,41 +1,41 @@
-# Android Things TensorFlow image classifier sample
+# Android Things TensorFlow Lite image classifier sample
 
 This sample demonstrates how to run TensorFlow inference on Android Things.
 
-When a GPIO button is pushed, the current image is captured from an attached
-camera. The captured image is then converted and piped into a TensorFlow model
-that identifies what is in the image. Up to three labels returned by the
-TensorFlow network is shown on logcat and on the screen, if there is an
-attached display. Also, the result is spoken out loud using text-to-speech and
-sent to an attached speaker, if any.
+When a button is pushed or when the touhscreen is touched, the current image is captured from the
+camera. The image is then converted and piped into a TensorFlow Lite classifier model that
+identifies what is in the image. Up to three results with the highest confidence returned by the
+classifier are shown on the screen, if there is an attached display. Also, the result is spoken out
+loud using Text-To-Speech to the default audio output.
 
-This project is based on the [TensorFlow Android Camera Demo TF_Classify app](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/android/).
-The TensorFlow training was done using Google inception model and the trained data set
-is used to run inference and generate classification labels via TensorFlow Android Inference
-APIs.
+This project is based on the
+[TensorFlow Android Camera Demo TF_Classify app](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/android/)
+and was adapted to use [TensorFlow Lite](https://www.tensorflow.org/mobile/tflite/), a lightweight version of TensorFlow targeted at mobile
+devices. The TensorFlow classifier model is
+[MobileNet\_v1](https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md)
+pre-trained on the [ImageNet ILSVRC2012](http://www.image-net.org/challenges/LSVRC/2012/) dataset.
 
-This sample uses the [TensorFlow inference library](https://bintray.com/google/tensorflow/tensorflow-android) and does not require any native build tools. You can add the TensorFlow inference library to your project by adding a dependency in your build.gradle, for example:
+This sample uses the [TensorFlow Lite inference library](https://bintray.com/google/tensorflow/tensorflow-lite)
+and does not require any native build tools. You can add the TensorFlow Lite inference library to
+your project by adding a dependency in your `build.gradle`, for example:
 ```
 dependencies {
-    compile 'org.tensorflow:tensorflow-android:1.2.0'
+    compile 'org.tensorflow:tensorflow-lite:0.1.1'
 }
 ```
 
-Note: this sample requires a camera. Find an appropriate board in the [documentation](https://developer.android.com/things/hardware/developer-kits.html).
+Note: this sample requires a camera. Find an appropriate board in the
+[documentation](https://developer.android.com/things/hardware/developer-kits.html).
 
 ## Pre-requisites
 
-- Android Things compatible board e.g. Raspberry Pi 3
-- Android Things compatible camera e.g. Raspberry Pi 3 camera module
+- Android Things compatible board and an attached camera
 - Android Studio 2.2+
-- The following individual components:
-    - 1 push button
-    - 2 resistors
-    - 1 LED light
-    - 1 breadboard
-    - jumper wires
-    - Optional: speaker or earphone set
-    - Optional: HDMI display or Raspberry Pi display
+- The following **optional** components:
+    - one button and one resistor for triggering the camera
+    - one LED and one resistor for the "ready" indicator 
+    - speaker or headphones for Text-To-Speech results
+    - touchscreen or display for showing results
 
 ## Schematics
 
@@ -47,8 +47,7 @@ On Android Studio, click on the "Run" button.
 If you prefer to run on the command line, type
 ```bash
 ./gradlew installDebug
-adb shell am start
-com.example.androidthings.imageclassifier/.ImageClassifierActivity
+adb shell am start com.example.androidthings.imageclassifier/.ImageClassifierActivity
 ```
 
 If you have everything set up correctly:
@@ -56,17 +55,17 @@ If you have everything set up correctly:
 0. Wait until the LED turns on
 0. Point the camera to something like a dog, cat or a furniture
 0. Push the button to take a picture
-0. The LED should go off while running. In a Raspberry Pi 3, it takes less
-   than one second to capture the picture and run it through TensorFlow, and
-   some extra time to speak the results through Text-To-Speech
+0. The LED should go off while running. In a Raspberry Pi 3, it takes about 500 millisecond to
+   capture the picture and run it through TensorFlow, and some extra time to speak the results
+   through Text-To-Speech
 0. Inference results will show in logcat and, if there is a display connected,
    both the image and the results will be shown
-0. If there is a speaker or earphones connected, the results will be spoken via
+0. If a speaker or headphones are connected, the results will be spoken via
    text to speech
 
 ## License
 
-Copyright 2017 The Android Things Samples Authors.
+Copyright 2018 The Android Things Samples Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

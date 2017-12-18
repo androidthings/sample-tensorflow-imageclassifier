@@ -18,10 +18,17 @@ package com.example.androidthings.imageclassifier;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.media.Image;
+import android.os.Environment;
+import android.util.Log;
 
 import junit.framework.Assert;
 
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -36,11 +43,10 @@ public class ImagePreprocessor {
     private Bitmap rgbFrameBitmap;
     private Bitmap croppedBitmap;
 
-    public ImagePreprocessor() {
-        this.croppedBitmap = Bitmap.createBitmap(Helper.IMAGE_SIZE, Helper.IMAGE_SIZE,
-                Config.ARGB_8888);
-        this.rgbFrameBitmap = Bitmap.createBitmap(CameraHandler.IMAGE_WIDTH,
-                CameraHandler.IMAGE_HEIGHT, Config.ARGB_8888);
+    public ImagePreprocessor(int previewWidth, int previewHeight,
+                             int croppedwidth, int croppedHeight) {
+        this.croppedBitmap = Bitmap.createBitmap(croppedwidth, croppedHeight, Config.ARGB_8888);
+        this.rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
     }
 
     public Bitmap preprocessImage(final Image image) {
@@ -54,14 +60,14 @@ public class ImagePreprocessor {
         if (croppedBitmap != null && rgbFrameBitmap != null) {
             ByteBuffer bb = image.getPlanes()[0].getBuffer();
             rgbFrameBitmap = BitmapFactory.decodeStream(new ByteBufferBackedInputStream(bb));
-            Helper.cropAndRescaleBitmap(rgbFrameBitmap, croppedBitmap, 0);
+            cropAndRescaleBitmap(rgbFrameBitmap, croppedBitmap, 0);
         }
 
         image.close();
 
         // For debugging
         if (SAVE_PREVIEW_BITMAP) {
-            Helper.saveBitmap(croppedBitmap);
+            saveBitmap(croppedBitmap);
         }
         return croppedBitmap;
     }
@@ -91,5 +97,52 @@ public class ImagePreprocessor {
             buf.get(bytes, off, len);
             return len;
         }
+    }
+
+    /**
+     * Saves a Bitmap object to disk for analysis.
+     *
+     * @param bitmap The bitmap to save.
+     */
+    static void saveBitmap(final Bitmap bitmap) {
+        final File file = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES), "tensorflow_preview.png");
+        Log.d("ImageHelper", String.format("Saving %dx%d bitmap to %s.",
+                bitmap.getWidth(), bitmap.getHeight(), file.getAbsolutePath()));
+
+        file.delete();
+
+        try (FileOutputStream fs = new FileOutputStream(file);
+             BufferedOutputStream out = new BufferedOutputStream(fs)) {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 99, out);
+        } catch (Exception e) {
+            Log.w("ImageHelper", "Could not save image for debugging", e);
+        }
+    }
+
+    static void cropAndRescaleBitmap(final Bitmap src, final Bitmap dst,
+                                     int sensorOrientation) {
+        Assert.assertEquals(dst.getWidth(), dst.getHeight());
+        final float minDim = Math.min(src.getWidth(), src.getHeight());
+
+        final Matrix matrix = new Matrix();
+
+        // We only want the center square out of the original rectangle.
+        final float translateX = -Math.max(0, (src.getWidth() - minDim) / 2);
+        final float translateY = -Math.max(0, (src.getHeight() - minDim) / 2);
+        matrix.preTranslate(translateX, translateY);
+
+        final float scaleFactor = dst.getHeight() / minDim;
+        matrix.postScale(scaleFactor, scaleFactor);
+
+        // Rotate around the center if necessary.
+        if (sensorOrientation != 0) {
+            matrix.postTranslate(-dst.getWidth() / 2.0f, -dst.getHeight() / 2.0f);
+            matrix.postRotate(sensorOrientation);
+            matrix.postTranslate(dst.getWidth() / 2.0f, dst.getHeight() / 2.0f);
+        }
+
+        final Canvas canvas = new Canvas(dst);
+        canvas.drawBitmap(src, matrix, null);
     }
 }
