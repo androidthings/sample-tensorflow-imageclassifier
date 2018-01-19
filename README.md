@@ -27,6 +27,12 @@ dependencies {
 Note: this sample requires a camera. Find an appropriate board in the
 [documentation](https://developer.android.com/things/hardware/developer-kits.html).
 
+## Screenshots
+
+![TensorFlow Lite image classifier sample demo][demo-gif]
+
+[(Watch the demo on YouTube)][demo-yt]
+
 ## Pre-requisites
 
 - Android Things compatible board and an attached camera
@@ -78,3 +84,6 @@ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
 License for the specific language governing permissions and limitations under
 the License.
+
+[demo-yt]: https://www.youtube.com/watch?v=8kxYlI9R2xo&list=PLWz5rJ2EKKc-GjpNkFe9q3DhE2voJscDT&index=11
+[demo-gif]: demo1.gif
