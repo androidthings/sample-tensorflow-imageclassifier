@@ -52,15 +52,15 @@ adb shell am start com.example.androidthings.imageclassifier/.ImageClassifierAct
 
 If you have everything set up correctly:
 
-0. Wait until the LED turns on
-0. Point the camera to something like a dog, cat or a furniture
-0. Push the button to take a picture
-0. The LED should go off while running. In a Raspberry Pi 3, it takes about 500 millisecond to
+1. Wait until the LED turns on
+1. Point the camera to something like a dog, cat or a furniture
+1. Push the button to take a picture
+1. The LED should go off while running. In a Raspberry Pi 3, it takes about 500 millisecond to
    capture the picture and run it through TensorFlow, and some extra time to speak the results
    through Text-To-Speech
-0. Inference results will show in logcat and, if there is a display connected,
+1. Inference results will show in logcat and, if there is a display connected,
    both the image and the results will be shown
-0. If a speaker or headphones are connected, the results will be spoken via
+1. If a speaker or headphones are connected, the results will be spoken via
    text to speech
 
 ## License
