@@ -17,9 +17,9 @@ package com.example.androidthings.imageclassifier;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.hardware.camera2.CameraAccessException;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Bundle;
@@ -27,37 +27,30 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
-import android.text.TextUtils;
 import android.util.Log;
+import android.util.Size;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
-
 import com.example.androidthings.imageclassifier.classifier.Recognition;
 import com.example.androidthings.imageclassifier.classifier.TensorFlowImageClassifier;
 import com.google.android.things.contrib.driver.button.Button;
 import com.google.android.things.contrib.driver.button.ButtonInputDriver;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManager;
-
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ImageClassifierActivity extends Activity implements ImageReader.OnImageAvailableListener {
     private static final String TAG = "ImageClassifierActivity";
 
-    private static final int PREVIEW_IMAGE_WIDTH = 640;
-    private static final int PREVIEW_IMAGE_HEIGHT = 480;
-    private static final int TF_INPUT_IMAGE_WIDTH = 224;
-    private static final int TF_INPUT_IMAGE_HEIGHT = 224;
+    // Matches the images used to train the TensorFlow model
+    private static final Size MODEL_IMAGE_SIZE = new Size(224, 224);
 
     /* Key code used by GPIO button to trigger image capture */
     private static final int SHUTTER_KEYCODE = KeyEvent.KEYCODE_CAMERA;
@@ -88,6 +81,7 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         mResultText = findViewById(R.id.resultText);
 
         init();
+        CameraHandler.dumpFormatInfo(this);
     }
 
     private void init() {
@@ -123,8 +117,19 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
     private Runnable mInitializeOnBackground = new Runnable() {
         @Override
         public void run() {
-            mImagePreprocessor = new ImagePreprocessor(PREVIEW_IMAGE_WIDTH, PREVIEW_IMAGE_HEIGHT,
-                    TF_INPUT_IMAGE_WIDTH, TF_INPUT_IMAGE_HEIGHT);
+            mCameraHandler = CameraHandler.getInstance();
+            try {
+                mCameraHandler.initializeCamera(ImageClassifierActivity.this,
+                    mBackgroundHandler, MODEL_IMAGE_SIZE, ImageClassifierActivity.this);
+                CameraHandler.dumpFormatInfo(ImageClassifierActivity.this);
+            } catch (CameraAccessException e) {
+                throw new RuntimeException(e);
+            }
+            Size cameraCaptureSize = mCameraHandler.getImageDimensions();
+
+            mImagePreprocessor =
+                new ImagePreprocessor(cameraCaptureSize.getWidth(), cameraCaptureSize.getHeight(),
+                    MODEL_IMAGE_SIZE.getWidth(), MODEL_IMAGE_SIZE.getHeight());
 
             mTtsSpeaker = new TtsSpeaker();
             mTtsSpeaker.setHasSenseOfHumor(true);
@@ -143,14 +148,10 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
                             }
                         }
                     });
-            mCameraHandler = CameraHandler.getInstance();
-            mCameraHandler.initializeCamera(ImageClassifierActivity.this,
-                    PREVIEW_IMAGE_WIDTH, PREVIEW_IMAGE_HEIGHT, mBackgroundHandler,
-                    ImageClassifierActivity.this);
 
             try {
                 mTensorFlowClassifier = new TensorFlowImageClassifier(ImageClassifierActivity.this,
-                        TF_INPUT_IMAGE_WIDTH, TF_INPUT_IMAGE_HEIGHT);
+                    MODEL_IMAGE_SIZE.getWidth(), MODEL_IMAGE_SIZE.getHeight());
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot initialize TFLite Classifier", e);
             }
@@ -208,8 +209,9 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
      * Verify and initiate a new image capture
      */
     private void startImageCapture() {
-        Log.d(TAG, "Ready for another capture? " + mReady.get());
-        if (mReady.get()) {
+        boolean isReady = mReady.get();
+        Log.d(TAG, "Ready for another capture? " + isReady);
+        if (isReady) {
             setReady(false);
             mResultText.setText("Hold on...");
             mBackgroundHandler.post(mBackgroundClickHandler);
@@ -247,7 +249,6 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
         });
 
         final Collection<Recognition> results = mTensorFlowClassifier.doRecognize(bitmap);
-
         Log.d(TAG, "Got the following results from Tensorflow: " + results);
 
         runOnUiThread(new Runnable() {

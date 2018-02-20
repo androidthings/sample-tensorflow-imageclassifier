@@ -31,9 +31,11 @@ import android.media.ImageReader;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.util.Log;
+import android.util.Pair;
 import android.util.Size;
-
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 
 public class CameraHandler {
     private static final String TAG = CameraHandler.class.getSimpleName();
@@ -42,6 +44,8 @@ public class CameraHandler {
     private CameraDevice mCameraDevice;
     private CameraCaptureSession mCaptureSession;
     private boolean initialized;
+
+    private Size mImageDimensions;
 
     /**
      * An {@link ImageReader} that handles still image capture.
@@ -64,40 +68,46 @@ public class CameraHandler {
      * Initialize the camera device
      */
     @SuppressLint("MissingPermission")
-    public void initializeCamera(Context context, int previewWidth, int previewHeight,
-                                 Handler backgroundHandler,
-                                 ImageReader.OnImageAvailableListener imageAvailableListener) {
+    public void initializeCamera(Context context, Handler backgroundHandler, Size minSize,
+                                 ImageReader.OnImageAvailableListener imageAvailableListener)
+        throws CameraAccessException {
         if (initialized) {
             throw new IllegalStateException(
                     "CameraHandler is already initialized or is initializing");
         }
         initialized = true;
-
         // Discover the camera instance
         CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-        String[] camIds = null;
-        try {
-            camIds = manager.getCameraIdList();
-        } catch (CameraAccessException e) {
-            Log.w(TAG, "Cannot get the list of available cameras", e);
-        }
-        if (camIds == null || camIds.length < 1) {
-            Log.d(TAG, "No cameras found");
-            return;
-        }
-        Log.d(TAG, "Using camera id " + camIds[0]);
+        String camId = getCameraId(context);
 
-        // Initialize the image processor
-        mImageReader = ImageReader.newInstance(previewWidth, previewHeight, ImageFormat.JPEG,
-                MAX_IMAGES);
+        // Initialize the image processor with the largest available size.
+        CameraCharacteristics characteristics = manager.getCameraCharacteristics(camId);
+        StreamConfigurationMap map = characteristics.get(
+            CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
+        Size bestSize = getBestCameraSize(map.getOutputSizes(ImageFormat.JPEG), minSize);
+        if (bestSize == null) {
+            throw new RuntimeException("We could not find a camera resolution that is larger than "
+                    + minSize.getWidth() + "x" + minSize.getHeight());
+        }
+
+        mImageReader = ImageReader.newInstance(bestSize.getWidth(), bestSize.getHeight(),
+            ImageFormat.JPEG, MAX_IMAGES);
+        mImageDimensions = bestSize;
+        Log.d(TAG, "Will capture photos that are " + mImageDimensions.getWidth() + " x " +
+            mImageDimensions.getHeight());
         mImageReader.setOnImageAvailableListener(imageAvailableListener, backgroundHandler);
 
         // Open the camera resource
         try {
-            manager.openCamera(camIds[0], mStateCallback, backgroundHandler);
+            manager.openCamera(camId, mStateCallback, backgroundHandler);
         } catch (CameraAccessException cae) {
-            Log.d(TAG, "Camera access exception", cae);
+            Log.e(TAG, "Camera access exception", cae);
         }
+    }
+
+    public Size getImageDimensions() {
+        return mImageDimensions;
     }
 
     /**
@@ -161,13 +171,7 @@ public class CameraHandler {
         }
     }
 
-    /**
-     * Helpful debugging method:  Dump all supported camera formats to log.  You don't need to run
-     * this for normal operation, but it's very helpful when porting this code to different
-     * hardware.
-     */
-    public static void dumpFormatInfo(Context context) {
-        // Discover the camera instance
+    public static String getCameraId(Context context) {
         CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         String[] camIds = null;
         try {
@@ -177,11 +181,26 @@ public class CameraHandler {
         }
         if (camIds == null || camIds.length < 1) {
             Log.d(TAG, "No cameras found");
+            return null;
+        }
+        return camIds[0];
+    }
+
+    /**
+     * Helpful debugging method:  Dump all supported camera formats to log.  You don't need to run
+     * this for normal operation, but it's very helpful when porting this code to different
+     * hardware.
+     */
+    public static void dumpFormatInfo(Context context) {
+        // Discover the camera instance
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+        String camId = getCameraId(context);
+        if (camId == null) {
             return;
         }
-        Log.d(TAG, "Using camera id " + camIds[0]);
+        Log.d(TAG, "Using camera id " + camId);
         try {
-            CameraCharacteristics characteristics = manager.getCameraCharacteristics(camIds[0]);
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(camId);
             StreamConfigurationMap configs = characteristics.get(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             for (int format : configs.getOutputFormats()) {
@@ -195,7 +214,7 @@ public class CameraHandler {
                 Log.d(TAG, "Effect available: " + effect);
             }
         } catch (CameraAccessException e) {
-            Log.d(TAG, "Cam access exception getting characteristics.");
+            Log.e(TAG, "Camera access exception getting characteristics.");
         }
     }
 
@@ -270,4 +289,28 @@ public class CameraHandler {
                 }
             };
 
+    static Size getBestCameraSize(Size[] availableCameraResolutions, Size minSize) {
+        // This should select the closest size that is not too small
+        Arrays.sort(availableCameraResolutions, new CompareSizesByArea()); // Sort by smallest first
+        for (Size resolution : availableCameraResolutions) {
+            if (resolution.getWidth() >= minSize.getWidth() &&
+                    resolution.getHeight() >= minSize.getHeight()) {
+                return resolution;
+            }
+        }
+        return null;
+    }
+
+
+    /**
+     * Compares two {@code Size}s based on their areas ascending.
+     */
+    static class CompareSizesByArea implements Comparator<Size> {
+        @Override
+        public int compare(Size lhs, Size rhs) {
+            // We cast here to ensure the multiplications won't overflow
+            return Long.signum((long) lhs.getWidth() * lhs.getHeight() -
+                    (long) rhs.getWidth() * rhs.getHeight());
+        }
+    }
 }
