@@ -40,7 +40,7 @@ import com.example.androidthings.imageclassifier.classifier.TensorFlowImageClass
 import com.google.android.things.contrib.driver.button.Button;
 import com.google.android.things.contrib.driver.button.ButtonInputDriver;
 import com.google.android.things.pio.Gpio;
-import com.google.android.things.pio.PeripheralManagerService;
+import com.google.android.things.pio.PeripheralManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,9 +105,9 @@ public class ImageClassifierActivity extends Activity implements ImageReader.OnI
      * This method should only be called when running on an Android Things device.
      */
     private void initPIO() {
-        PeripheralManagerService pioService = new PeripheralManagerService();
+        PeripheralManager pioManager = PeripheralManager.getInstance();
         try {
-            mReadyLED = pioService.openGpio(BoardDefaults.getGPIOForLED());
+            mReadyLED = pioManager.openGpio(BoardDefaults.getGPIOForLED());
             mReadyLED.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
             mButtonDriver = new ButtonInputDriver(
                     BoardDefaults.getGPIOForButton(),
