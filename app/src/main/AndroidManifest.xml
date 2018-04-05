@@ -40,12 +40,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Launch activity automatically on boot -->
+            <!--
+              Uncomment the following intent filter block to enable this activity to
+              launch automatically on boot, and re-launch if the app terminates.
+            -->
+<!--
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.IOT_LAUNCHER"/>
+                <category android:name="android.intent.category.HOME"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
+-->
         </activity>
 
         <!-- Use tools:replace to stop the contrib-driver dependency from overriding our

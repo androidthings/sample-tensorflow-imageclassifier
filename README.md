@@ -39,7 +39,7 @@ Note: this sample requires a camera. Find an appropriate board in the
 - Android Studio 2.2+
 - The following **optional** components:
     - one button and one resistor for triggering the camera
-    - one LED and one resistor for the "ready" indicator 
+    - one LED and one resistor for the "ready" indicator
     - speaker or headphones for Text-To-Speech results
     - touchscreen or display for showing results
 
@@ -68,6 +68,24 @@ If you have everything set up correctly:
    both the image and the results will be shown
 1. If a speaker or headphones are connected, the results will be spoken via
    text to speech
+
+## Enable auto-launch behavior
+
+This sample app is currently configured to launch only when deployed from your
+development machine. To enable the main activity to launch automatically on boot,
+add the following `intent-filter` to the app's manifest file:
+
+```xml
+<activity ...>
+
+   <intent-filter>
+       <action android:name="android.intent.action.MAIN"/>
+       <category android:name="android.intent.category.HOME"/>
+       <category android:name="android.intent.category.DEFAULT"/>
+   </intent-filter>
+
+</activity>
+```
 
 ## License
 
