@@ -1,6 +1,10 @@
-# Android Things TensorFlow Lite image classifier sample
+# TensorFlow Lite IoT Image Classifier
 
-This sample demonstrates how to run TensorFlow inference on Android Things.
+This sample demonstrates how to run TensorFlow Lite inference on Android Things.
+Push a button to capture an image with the camera, and TensorFlow Lite will tell
+you what it is!
+
+## Introduction
 
 When a button is pushed or when the touhscreen is touched, the current image is captured from the
 camera. The image is then converted and piped into a TensorFlow Lite classifier model that
