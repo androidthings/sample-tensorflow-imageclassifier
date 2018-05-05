@@ -41,5 +41,5 @@ dependencies {
     implementation 'com.android.support:support-annotations:27.1.0'
     implementation 'com.google.android.things.contrib:driver-button:0.7'
     implementation 'org.tensorflow:tensorflow-lite:0.1.1'
-    compileOnly 'com.google.android.things:androidthings:0.8-devpreview'
+    compileOnly 'com.google.android.things:androidthings:1.0'
 }
