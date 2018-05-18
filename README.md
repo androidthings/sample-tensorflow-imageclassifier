@@ -6,7 +6,7 @@ you what it is!
 
 ## Introduction
 
-When a button is pushed or when the touhscreen is touched, the current image is captured from the
+When a button is pushed or when the touchscreen is touched, the current image is captured from the
 camera. The image is then converted and piped into a TensorFlow Lite classifier model that
 identifies what is in the image. Up to three results with the highest confidence returned by the
 classifier are shown on the screen, if there is an attached display. Also, the result is spoken out
