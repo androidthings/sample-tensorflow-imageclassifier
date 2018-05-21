@@ -2,7 +2,7 @@
 
 This sample demonstrates how to run TensorFlow Lite inference on Android Things.
 Push a button to capture an image with the camera, and TensorFlow Lite will tell
-you what it is!
+you what it is! Follow the [Image Classifier Codelab](https://codelabs.developers.google.com/codelabs/androidthings-classifier) step-by-step instructions on how to build a similar sample.
 
 ## Introduction
 
@@ -50,6 +50,18 @@ Note: this sample requires a camera. Find an appropriate board in the
 ## Schematics
 
 ![Schematics](rpi3_schematics_tf.png)
+
+## Run on Android Things Starter Kit
+
+If you have an Android Things Starter Kit, you can easily run this sample on your i.MX7D development board from the [Android Things Toolkit](https://play.google.com/store/apps/details?id=com.google.android.things.companion&hl=en) app.
+
+To run the sample on your i.MX7D development board:
+  1. Set up your device using Toolkit
+  2. Navigate to the Apps tab
+  3. Select Run next to the Image Classifier sample.
+  4. Press the "A" button on your Rainbow HAT or tap on the display to take a photo.
+
+![Running Image Classifier Sample on Toolkit][toolkit-jpg]
 
 ## Build and Install
 
@@ -109,3 +121,5 @@ the License.
 
 [demo-yt]: https://www.youtube.com/watch?v=8kxYlI9R2xo&list=PLWz5rJ2EKKc-GjpNkFe9q3DhE2voJscDT&index=11
 [demo-gif]: demo1.gif
+[toolkit-jpg]: toolkit_tensorflowsample.jpg
+
