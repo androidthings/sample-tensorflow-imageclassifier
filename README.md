@@ -2,7 +2,13 @@
 
 This sample demonstrates how to run TensorFlow Lite inference on Android Things.
 Push a button to capture an image with the camera, and TensorFlow Lite will tell
-you what it is! Follow the [Image Classifier Codelab](https://codelabs.developers.google.com/codelabs/androidthings-classifier) step-by-step instructions on how to build a similar sample.
+you what it is!
+Follow the [Image Classifier Codelab](https://codelabs.developers.google.com/codelabs/androidthings-classifier)
+step-by-step instructions on how to build a similar sample.
+
+> **Note:** The Android Things Console will be turned down for non-commercial
+> use on January 5, 2022. For more details, see the
+> [FAQ page](https://developer.android.com/things/faq).
 
 ## Introduction
 
